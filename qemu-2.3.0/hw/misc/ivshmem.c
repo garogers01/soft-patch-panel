@@ -92,7 +92,8 @@ typedef struct IVShmemState {
     uint64_t ivshmem_size; /* size of shared memory region */
     uint32_t ivshmem_attr;
     uint32_t ivshmem_64bit;
-    int shm_fd; /* shared memory file descriptor */
+    /*int shm_fd;*/ /* shared memory file descriptor */
+    int shm_fds[IVSHMEM_MAX_FILES]; /* shared memory file descriptor */
 
     Peer *peers;
     int nb_peers; /* how many guests we have space for */
@@ -254,7 +255,7 @@ static uint64_t ivshmem_io_read(void *opaque, hwaddr addr,
 
         case IVPOSITION:
             /* return my VM ID if the memory is mapped */
-            if (s->shm_fd > 0) {
+            if (s->shm_fds[0] > 0) {
                 ret = s->vm_id;
             } else {
                 ret = -1;
@@ -361,6 +362,7 @@ static int check_shm_size(IVShmemState *s, int fd) {
     }
 }
 
+#if 0
 /* create the shared memory BAR when we are not using the server, so we can
  * create the BAR and map the memory immediately */
 static void create_shared_memory_BAR(IVShmemState *s, int fd) {
@@ -379,6 +381,84 @@ static void create_shared_memory_BAR(IVShmemState *s, int fd) {
     /* region for shared memory */
     pci_register_bar(PCI_DEVICE(s), 2, s->ivshmem_attr, &s->bar);
 }
+#endif
+
+
+/* create the shared memory BAR when we are not using the server, so we can
+ * create the BAR and map the memory immediately */
+static int create_shared_memory_BAR(IVShmemState *s,
+        IVShmemFile f[IVSHMEM_MAX_FILES], int num_files) {
+
+    void * ptr_data, * virt_area;
+    uint64_t total_size = 0, one_gb_align;
+    int i, fd_zero;
+
+    /* open /dev/zero for mmap */
+    fd_zero = open("/dev/zero", O_RDWR);
+
+    if (fd_zero < 0) {
+        fprintf(stderr, "ivshmem: opening /dev/zero failed (%s)\n",
+                strerror(errno));
+        return -1;
+    }
+
+    /* Get virtual area of ivshmem_size plus 1GB for alignment.
+     * virt_area later will be used to remap files backed up by hugepages (1GB
+  * or 2MB). Therefore and due to mmap restrictions virt_area will have to
+     * be aligned to both 1GB and 2MB (1GB will cover both scenarios). In order
+     * to be sure we can freely align virt_area up to 1GB we reserve vshmem_size
+     * plus 1GB */
+    virt_area = mmap(NULL, s->ivshmem_size + ONE_GB,
+            PROT_READ|PROT_WRITE,
+            MAP_PRIVATE, fd_zero, 0);
+
+    if (virt_area == MAP_FAILED) {
+        fprintf(stderr, "ivshmem: mmap /dev/zero failed (%s)\n",
+                strerror(errno));
+        return -1;
+    }
+
+    /* Calculate 1GB boundary alignment covering 1GB and 2MB hugepage cases */
+    one_gb_align = ONE_GB - ((uint64_t) virt_area % ONE_GB);
+
+    munmap(virt_area, s->ivshmem_size + ONE_GB);
+    close(fd_zero);
+
+    /* Finally align virt_area to 1GB boundary. */
+    virt_area += one_gb_align;
+
+    /* at this point virt_area contains a virtual address that where we can
+     * safely use to mmap all ivshmem files.
+     * Proceed to mmap all ivshmem files so. */
+    for (i = 0; i < num_files; i++) {
+
+        /* remap file into the start of virtual area */
+        ptr_data = mmap(virt_area + total_size,
+                f[i].size, PROT_READ|PROT_WRITE,
+                MAP_SHARED | MAP_FIXED, f[i].fd, f[i].offset);
+
+        /* we need to make sure we get _exactly_ what we want */
+        if (ptr_data == MAP_FAILED || ptr_data != virt_area + total_size) {
+            fprintf(stderr, "ivshmem: mmap failed (%s)\n", strerror(errno));
+            return -1;
+        }
+
+        total_size += f[i].size;
+    }
+
+    memcpy(s->shm_fds, f, sizeof(s->shm_fds));
+
+    memory_region_init_ram_ptr(&s->ivshmem, OBJECT(s), "ivshmem.bar2",
+                               s->ivshmem_size, virt_area);
+    vmstate_register_ram(&s->ivshmem, &s->parent_obj.qdev);
+    memory_region_add_subregion(&s->bar, 0, &s->ivshmem);
+
+    /* region for shared memory */
+    pci_register_bar(&s->parent_obj, 2, s->ivshmem_attr, &s->bar);
+
+    return 0;
+}
+
 
 static void ivshmem_add_eventfd(IVShmemState *s, int posn, int i)
 {
@@ -556,7 +636,7 @@ static void ivshmem_read(void *opaque, const uint8_t *buf, int size)
         memory_region_add_subregion(&s->bar, 0, &s->ivshmem);
 
         /* only store the fd if it is successfully mapped */
-        s->shm_fd = incoming_fd;
+        s->shm_fds[0] = incoming_fd;
 
         return;
     }
@@ -776,7 +856,7 @@ static int pci_ivshmem_init(PCIDevice *dev)
 
     pci_config_set_interrupt_pin(pci_conf, 1);
 
-    s->shm_fd = 0;
+    memset(s->shm_fds, 0, sizeof(s->shm_fds));
 
     memory_region_init_io(&s->ivshmem_mmio, OBJECT(s), &ivshmem_mmio_ops, s,
                           "ivshmem-mmio", IVSHMEM_REG_BAR_SIZE);
@@ -833,6 +913,7 @@ static int pci_ivshmem_init(PCIDevice *dev)
         }
 
         IVSHMEM_DPRINTF("using shm_open (shm object = %s)\n", s->shmobj);
+        printf("using shm_open (shm object = %s)\n", s->shmobj);
 
         memset(f, 0, sizeof(f));
 
@@ -911,6 +992,7 @@ static int pci_ivshmem_init(PCIDevice *dev)
             }
         }
         else {
+#if 0
              /* just map the file immediately, we're not using a server */
              int fd;
 
@@ -934,9 +1016,37 @@ static int pci_ivshmem_init(PCIDevice *dev)
             exit(1);
         }
 
-        create_shared_memory_BAR(s, fd);
+#endif
+
+ /* try opening with O_EXCL and if it succeeds zero the memory
+             * by truncating to 0 */
+            if ((f[0].fd = shm_open(s->shmobj, O_CREAT|O_RDWR|O_EXCL,
+                            S_IRWXU|S_IRWXG|S_IRWXO)) > 0) {
+               /* truncate file to length PCI device's memory */
+                if (ftruncate(f[0].fd, s->ivshmem_size) != 0) {
+                    fprintf(stderr, "ivshmem: could not truncate shared file\n");
+                }
+
+            } else if ((f[0].fd = shm_open(s->shmobj, O_CREAT|O_RDWR,
+                            S_IRWXU|S_IRWXG|S_IRWXO)) < 0) {
+                fprintf(stderr, "ivshmem: could not open shared file\n");
+                exit(-1);
+            }
+
+            if (s->ivshmem_size > get_file_size(f[0].fd)) {
+                fprintf(stderr, "ivshmem: Requested memory size greater"
+                        " than shared object size\n");
+                exit(-1);
+            }
+
+            f_index = 1;
+            f[0].size = s->ivshmem_size;
 
        }
+
+    if (create_shared_memory_BAR(s, f, f_index) < 0)
+                    exit(-1);
+
     }
 
     dev->config_write = ivshmem_write_config;
