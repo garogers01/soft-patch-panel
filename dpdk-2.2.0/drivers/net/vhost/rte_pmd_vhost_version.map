@@ -1,0 +1,8 @@
+DPDK_2.2 {
+
+	global:
+
+	rte_eth_vhost_portid2vdev;
+
+	local: *;
+};
