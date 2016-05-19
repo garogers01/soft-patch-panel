@@ -1,0 +1,12 @@
+DPDK_2.0 {
+	global:
+
+	rte_hostshmem_metadata_add_mempool;
+	rte_hostshmem_metadata_add_memzone;
+	rte_hostshmem_metadata_add_ring;
+	rte_hostshmem_metadata_cmdline_generate;
+	rte_hostshmem_metadata_create;
+	rte_hostshmem_metadata_dump;
+
+	local: *;
+};

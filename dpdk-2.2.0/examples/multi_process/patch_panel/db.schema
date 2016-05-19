@@ -1,0 +1,29 @@
+{"name": "Patch_Panel",
+ "version": "0.0.1",
+ "cksum": "1234567 891011",
+ "tables": {
+    "Patch_Panel": {
+     "columns": {
+       "bridges": {
+         "type": {"key": {"type": "uuid",
+                          "refTable": "Bridge"},
+                  "min": 0, "max": "unlimited"}}},
+     "isRoot": true,
+     "maxRows": 1},
+   "Bridge": {
+     "columns": {
+       "name": {
+         "type": "string",
+         "mutable": false},
+       "ports": {
+         "type": {"key": {"type": "uuid",
+                          "refTable": "Port"},
+                  "min": 0, "max": "unlimited"}}},
+		"indexes": [["name"]]},
+   "Port": {
+     "columns": {
+       "name": {
+         "type": "string",
+         "mutable": false}},
+		"indexes": [["name"]]}}}
+		

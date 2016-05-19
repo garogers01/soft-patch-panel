@@ -1,0 +1,18 @@
+sec 1;add ring 0
+sec 1;add ring 1
+sec 1;patch 0 2
+sec 1;patch 3 1
+sec 2;add ring 0
+sec 2;add ring 1
+sec 2;add ring 255
+sec 2;add ring 256
+sec 2;patch 2 4
+sec 2;patch 5 3
+sec 2;add tx pool mproc_pktmbuf_pool 3
+sec 2;add tx pool hsm_pktmbuf_pool 4
+sec 3;add ring 255
+sec 3;add ring 256
+sec 3;patch 0 1
+sec 3;forward
+sec 2;forward
+sec 1;forward
