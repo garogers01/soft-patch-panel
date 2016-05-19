@@ -395,6 +395,21 @@ rte_eth_from_ring(struct rte_ring *r)
 			r->memzone ? r->memzone->socket_id : SOCKET_ID_ANY);
 }
 
+int
+rte_eth_from_ring_s0(struct rte_ring *r)
+{
+	PMD_DEBUG_TRACE("ring socket id %d\n", 0);
+	return rte_eth_from_rings(r->name, &r, 1, &r, 1, 0);
+}
+
+int
+rte_eth_from_ring_s1(struct rte_ring *r)
+{
+	PMD_DEBUG_TRACE("ring socket id %d\n", 0);
+	return rte_eth_from_rings(r->name, &r, 1, &r, 1, 1);
+}
+
+
 enum dev_action{
 	DEV_CREATE,
 	DEV_ATTACH

@@ -3887,6 +3887,9 @@ rte_eth_dma_zone_reserve(const struct rte_eth_dev *eth_dev, const char *name,
 			 uint16_t queue_id, size_t size,
 			 unsigned align, int socket_id);
 
+enum rte_eth_dev_type
+rte_eth_dev_get_device_type(uint8_t port_id);		 
+			 
 #ifdef __cplusplus
 }
 #endif

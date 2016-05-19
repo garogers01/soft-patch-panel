@@ -69,6 +69,7 @@ _LDLIBS-$(CONFIG_RTE_LIBRTE_REORDER)        += -lrte_reorder
 ifeq ($(CONFIG_RTE_EXEC_ENV_LINUXAPP),y)
 _LDLIBS-$(CONFIG_RTE_LIBRTE_KNI)            += -lrte_kni
 _LDLIBS-$(CONFIG_RTE_LIBRTE_IVSHMEM)        += -lrte_ivshmem
+_LDLIBS-$(CONFIG_RTE_LIBRTE_HOSTSHMEM)        += -lrte_hostshmem
 endif
 
 _LDLIBS-$(CONFIG_RTE_LIBRTE_PIPELINE)       += -lrte_pipeline

@@ -353,9 +353,10 @@ rte_ring_lookup(const char *name)
 	struct rte_ring_list *ring_list;
 
 	ring_list = RTE_TAILQ_CAST(rte_ring_tailq.head, rte_ring_list);
-
+	
 	rte_rwlock_read_lock(RTE_EAL_TAILQ_RWLOCK);
-
+	
+	
 	TAILQ_FOREACH(te, ring_list, next) {
 		r = (struct rte_ring *) te->data;
 		if (strncmp(name, r->name, RTE_RING_NAMESIZE) == 0)

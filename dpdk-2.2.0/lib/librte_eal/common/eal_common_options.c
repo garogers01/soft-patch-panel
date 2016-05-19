@@ -95,6 +95,7 @@ eal_long_options[] = {
 	{OPT_VFIO_INTR,         1, NULL, OPT_VFIO_INTR_NUM        },
 	{OPT_VMWARE_TSC_MAP,    0, NULL, OPT_VMWARE_TSC_MAP_NUM   },
 	{OPT_XEN_DOM0,          0, NULL, OPT_XEN_DOM0_NUM         },
+	{OPT_HOST_SHMEM,       	1, NULL, OPT_HOST_SHMEM_NUM   },
 	{0,                     0, NULL, 0                        }
 };
 
@@ -128,6 +129,7 @@ eal_reset_internal_config(struct internal_config *internal_cfg)
 	internal_cfg->force_nchannel = 0;
 	internal_cfg->hugefile_prefix = HUGEFILE_PREFIX_DEFAULT;
 	internal_cfg->hugepage_dir = NULL;
+	internal_cfg->hsm_metadata = NULL;
 	internal_cfg->force_sockets = 0;
 	/* zero out the NUMA config */
 	for (i = 0; i < RTE_MAX_NUMA_NODES; i++)

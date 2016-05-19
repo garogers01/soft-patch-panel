@@ -42,7 +42,7 @@ APP = nfv_py
 # all source are stored in SRCS-y
 SRCS-y := nfv_py.c
 
-CFLAGS += $(WERROR_FLAGS) -O3
+CFLAGS += $(WERROR_FLAGS) -O0
 CFLAGS += -I$(SRCDIR)/../shared
 
 include $(RTE_SDK)/mk/rte.extapp.mk

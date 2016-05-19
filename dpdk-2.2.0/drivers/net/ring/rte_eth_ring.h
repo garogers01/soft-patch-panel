@@ -79,6 +79,10 @@ int rte_eth_from_rings(const char *name,
  */
 int rte_eth_from_ring(struct rte_ring *r);
 
+int rte_eth_from_ring_s0(struct rte_ring *r);
+
+int rte_eth_from_ring_s1(struct rte_ring *r);
+
 #ifdef __cplusplus
 }
 #endif

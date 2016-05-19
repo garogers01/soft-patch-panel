@@ -1496,6 +1496,17 @@ rte_eal_hugepage_attach(void)
 			continue;
 #endif
 
+#ifdef RTE_LIBRTE_HOSTSHMEM
+		/*
+		 * if segment has ioremap address set, it's an IVSHMEM segment and
+		 * doesn't need mapping as it was already mapped earlier
+		 */
+		if (mcfg->memseg[s].ioremap_addr != 0)
+			continue;
+#endif
+
+
+
 		/*
 		 * fdzero is mmapped to get a contiguous block of virtual
 		 * addresses of the appropriate memseg size.

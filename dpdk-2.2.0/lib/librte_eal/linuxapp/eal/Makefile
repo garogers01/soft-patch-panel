@@ -45,6 +45,7 @@ CFLAGS += -I$(RTE_SDK)/lib/librte_eal/common/include
 CFLAGS += -I$(RTE_SDK)/lib/librte_ring
 CFLAGS += -I$(RTE_SDK)/lib/librte_mempool
 CFLAGS += -I$(RTE_SDK)/lib/librte_ivshmem
+CFLAGS += -I$(RTE_SDK)/lib/librte_hostshmem
 CFLAGS += $(WERROR_FLAGS) -O3
 
 # specific to linuxapp exec-env
@@ -67,6 +68,10 @@ SRCS-$(CONFIG_RTE_LIBRTE_EAL_LINUXAPP) += eal_interrupts.c
 SRCS-$(CONFIG_RTE_LIBRTE_EAL_LINUXAPP) += eal_alarm.c
 ifeq ($(CONFIG_RTE_LIBRTE_IVSHMEM),y)
 SRCS-$(CONFIG_RTE_LIBRTE_EAL_LINUXAPP) += eal_ivshmem.c
+endif
+
+ifeq ($(CONFIG_RTE_LIBRTE_HOSTSHMEM),y)
+SRCS-$(CONFIG_RTE_LIBRTE_EAL_LINUXAPP) += eal_hostshmem.c
 endif
 
 # from common dir

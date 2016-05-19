@@ -77,12 +77,32 @@ struct port_info {
 
 /* define common names for structures shared between server and client */
 #define MP_CLIENT_RXQ_NAME "MProc_Ring_%u"
-#define PKTMBUF_POOL_NAME "MProc_pktmbuf_pool"
+#define PKTMBUF_POOL_NAME "mproc_pktmbuf_pool"
 #define VM_PKTMBUF_POOL_NAME "VM_Proc_pktmbuf_pool"
+#define LVL3_PKTMBUF_POOL_NAME "hsm_pktmbuf_pool"
 #define VM_MZ_PORT_INFO "VM_Proc_port_info"
 #define MZ_PORT_INFO "MProc_port_info"
 #define VHOST_BACKEND_NAME "eth_vhost%u"
 #define VHOST_IFACE_NAME "/tmp/sock%u"
+
+/* host share memory data structure */
+#define HSM_RING_NAME "HSM_Ring_%u"
+#define HSM_POOL_NAME "hsm_pktmbuf_pool"
+
+/*
+ * Given the rx queue name template above, get the queue name
+ */
+static inline const char *
+get_ring_name(unsigned id)
+{
+	/* buffer for return value. Size calculated by %u being replaced
+	 * by maximum 3 digits (plus an extra byte for safety) */
+	static char buffer[sizeof(HSM_RING_NAME) + 2];
+
+	snprintf(buffer, sizeof(buffer) - 1,HSM_RING_NAME, id);
+	return buffer;
+}
+
 /*
  * Given the rx queue name template above, get the queue name
  */

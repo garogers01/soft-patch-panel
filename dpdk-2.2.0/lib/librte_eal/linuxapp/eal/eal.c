@@ -617,6 +617,10 @@ eal_parse_args(int argc, char **argv)
 			internal_config.create_uio_dev = 1;
 			break;
 
+		case OPT_HOST_SHMEM_NUM:
+			internal_config.hsm_metadata = optarg;
+			break;			
+			
 		default:
 			if (opt < OPT_LONG_MIN_NUM && isprint(opt)) {
 				RTE_LOG(ERR, EAL, "Option %c is not supported "
@@ -789,7 +793,15 @@ rte_eal_init(int argc, char **argv)
 	if (rte_eal_ivshmem_init() < 0)
 		rte_panic("Cannot init IVSHMEM\n");
 #endif
-
+#ifdef RTE_LIBRTE_HOSTSHMEM
+	RTE_LOG(INFO, EAL, "Init hostshmem at path %s\n",
+			internal_config.hsm_metadata);
+	if (internal_config.hsm_metadata)
+	{
+		if (rte_eal_hostshmem_init() < 0)
+			rte_panic("Cannot init HOSTSHMEM\n");	
+	}
+#endif	
 	if (rte_eal_memory_init() < 0)
 		rte_panic("Cannot init memory\n");
 
@@ -806,7 +818,17 @@ rte_eal_init(int argc, char **argv)
 	if (rte_eal_ivshmem_obj_init() < 0)
 		rte_panic("Cannot init IVSHMEM objects\n");
 #endif
-
+#ifdef RTE_LIBRTE_HOSTSHMEM
+	RTE_LOG(INFO, EAL, "Init hostshmem at path %s\n",
+			internal_config.hsm_metadata);
+	if (internal_config.hsm_metadata)
+	{
+		RTE_LOG(INFO, EAL, "hostshmem path %s\n",
+				internal_config.hsm_metadata);	
+		if (rte_eal_hostshmem_obj_init() < 0)
+			rte_panic("Cannot init HOSTSHMEM objects\n");
+	}
+#endif
 	if (rte_eal_log_init(logid, internal_config.syslog_facility) < 0)
 		rte_panic("Cannot init logs\n");
 

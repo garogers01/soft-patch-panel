@@ -383,7 +383,7 @@ rte_eth_dev_count(void)
 	return nb_ports;
 }
 
-static enum rte_eth_dev_type
+enum rte_eth_dev_type
 rte_eth_dev_get_device_type(uint8_t port_id)
 {
 	if (!rte_eth_dev_is_valid_port(port_id))

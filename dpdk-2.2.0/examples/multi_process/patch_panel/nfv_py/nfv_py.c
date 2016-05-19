@@ -414,27 +414,36 @@ print_active_ports(char *str)
 			RTE_LOG(INFO, APP, "Port ID %d\n", i);
 			RTE_LOG(INFO, APP, "Status %d\n", ports_fwd_array[i].status);
 		
-			sprintf(str + strlen(str), "%d,", i);		
-			sprintf(str + strlen(str), "%d,", ports_fwd_array[i].status);
-			
+			sprintf(str + strlen(str), "port id: %d,", i);
+			if (ports_fwd_array[i].status >= 0)
+			{
+					sprintf(str + strlen(str), "on,");
+			}
+			else
+			{
+				sprintf(str + strlen(str), "off,");
+			}
+						
 			switch(ports_fwd_array[i].type) {
 				case PHY :
 					RTE_LOG(INFO, APP, "Type: PHY\n");
+					sprintf(str + strlen(str), "PHY,");
 					break;
 				case RING :
 					RTE_LOG(INFO, APP, "Type: RING\n");
+					sprintf(str + strlen(str), "RING,");
 					break;
 				case VHOST :
 					RTE_LOG(INFO, APP, "Type: VHOST\n");
+					sprintf(str + strlen(str), "VHOST,");
 					break;
 				case UNDEF :
 					RTE_LOG(INFO, APP, "Type: UDF\n");
+					sprintf(str + strlen(str), "UDF,");
 					break;				
 			}
 			RTE_LOG(INFO, APP, "Out Port ID %d\n", ports_fwd_array[i].out_port_id);	
-			sprintf(str + strlen(str), "%d,", ports_fwd_array[i].type);
-			sprintf(str + strlen(str), "%d,", ports_fwd_array[i].out_port_id);
-			sprintf(str + strlen(str), "\n");		
+			sprintf(str + strlen(str), "outport: %d\n", ports_fwd_array[i].out_port_id);
 		}	
 	}	
 }
@@ -457,7 +466,6 @@ main(int argc, char *argv[])
 
 	if (parse_app_args(argc, argv) < 0)
 		rte_exit(EXIT_FAILURE, "Invalid command-line arguments\n"); 
-
 	
 	/* initialize port forward array*/
 	forward_array_init();
@@ -471,14 +479,17 @@ main(int argc, char *argv[])
 	
 	RTE_LOG(INFO, APP, "Number of Ports: %d\n", nb_ports);
 	
-	/* populate port_forward_array with active port */
+	/* update port_forward_array with active port */
 	for (i=0; i < (int) nb_ports; i++)
 	{
-		if (rte_eth_dev_socket_id(i) > -1)
+		if (rte_eth_dev_is_valid_port(i))
 		{
-			/* Update ports_fwd_array with phy port*/
-			ports_fwd_array[i].status = i;
-			ports_fwd_array[i].type = PHY;			
+			if (rte_eth_dev_get_device_type(i) == RTE_ETH_DEV_PCI)
+			{
+				/* Update ports_fwd_array with phy port*/
+				ports_fwd_array[i].status = i;
+				ports_fwd_array[i].type = PHY;						
+			}
 		}
 	}
 
@@ -497,7 +508,7 @@ main(int argc, char *argv[])
 		
 	int sock = SOCK_RESET, connected = 0;
 	
-
+	/* send and receice msg loop */
 	while(1)
 	{
 		if (connected == 0)
@@ -510,7 +521,8 @@ main(int argc, char *argv[])
 					perror("socket error");
 					exit(1);
 			    }
-				//Creation of the socket
+				
+				/*Create of the tcp socket*/
 				memset(&servaddr, 0, sizeof(servaddr));
 				servaddr.sin_family = AF_INET;
 				servaddr.sin_addr.s_addr= inet_addr(server_ip);
@@ -564,11 +576,21 @@ main(int argc, char *argv[])
 		memset(str,'\0',sizeof(str));
 		if ((t=recv(sock, str, MSG_SIZE, 0)) > 0) 
 		{
-			if (strncmp(str, "status", 6) == 0)
+			RTE_LOG(DEBUG, APP, "Received string: %s\n", str);
+			/* tokenize user command from controller*/
+			char *token_list[MAX_PARAMETER] = {NULL};
+			i = 0;				
+			token_list[i] = strtok(str, " ");
+			while(token_list[i] != NULL) 
+			{
+				RTE_LOG(DEBUG, APP, "token %d = %s\n", i, token_list[i]);
+				i++;
+				token_list[i] = strtok(NULL, " ");
+			}			
+			if (!strcmp(token_list[0], "status"))
 			{
 				RTE_LOG(DEBUG, APP, "status\n");
 				memset(str,'\0',sizeof(client_name));
-				
 				if (cmd == START)
 				{
 					sprintf(str, "Client ID %d Running\n", client_id);
@@ -580,39 +602,34 @@ main(int argc, char *argv[])
 				print_active_ports(str);
 				forward_array_print();
 			}
-			if (strncmp(str, "start", 5) == 0)
+			if (!strcmp(token_list[0], "exit"))
+			{
+				RTE_LOG(DEBUG, APP, "exit\n");
+				RTE_LOG(DEBUG, APP, "stop\n"); 
+				cmd = STOP;
+				
+				break;	
+			}			
+			if (!strcmp(token_list[0], "start"))
 			{
 				RTE_LOG(DEBUG, APP, "start\n");
 				cmd = START;
 			}
-			else if (strncmp(str, "stop", 4) == 0)
+			else if (!strcmp(token_list[0], "stop"))
 			{
 				RTE_LOG(DEBUG, APP, "stop\n"); 
 				cmd = STOP;
 			}
-			else if (strncmp(str, "loopback", 8) == 0)
-			{
-				RTE_LOG(DEBUG, APP, "loopback\n"); 
-				cmd = LOOPBACK;
-			}
-			else if (strncmp(str, "forward", 7) == 0)
+			else if (!strcmp(token_list[0], "forward"))
 			{
 				RTE_LOG(DEBUG, APP, "forward\n"); 
 				cmd = FORWARD;
 			}
-			else if (strncmp(str, "add", 3) == 0)
+			else if (!strcmp(token_list[0], "add"))
 			{
 				RTE_LOG(DEBUG, APP, "add\n");
-				char *token_list[MAX_PARAMETER] = {NULL};
-				i = 0;				
-				token_list[i] = strtok(str, " ");
-				while(token_list[i] != NULL) 
-				{
-					RTE_LOG(DEBUG, APP, "token %d = %s\n", i, token_list[i]);
-					i++;
-					token_list[i] = strtok(NULL, " ");
-				}
-				if (strncmp(token_list[1], "vhost", 5) == 0)
+
+				if (!strcmp(token_list[1], "vhost"))
 				{
 					struct rte_mempool *mp = rte_mempool_lookup(PKTMBUF_POOL_NAME);
 					if (mp == NULL)
@@ -631,7 +648,7 @@ main(int argc, char *argv[])
 					ports_fwd_array[vhost_port_id].type = VHOST;
 					RTE_LOG(DEBUG, APP, "vhost port id %d\n", vhost_port_id); 
 				}
-				if (strncmp(token_list[1], "ring", 4) == 0)
+				if (!strcmp(token_list[1], "ring"))
 				{
 					int ring_id = atoi(token_list[2]);
 					/* look up ring, based on user's provided id*/ 
@@ -645,9 +662,9 @@ main(int argc, char *argv[])
 					ports_fwd_array[ring_port_id].type = RING;
 					RTE_LOG(DEBUG, APP, "ring port id %d\n", ring_port_id); 
 				}				
-				if (strncmp(token_list[1], "rx", 2) == 0)
+				if (!strcmp(token_list[1], "rx"))
 				{
-					if (strncmp(token_list[2], "ring", 4) == 0 )
+					if (!strcmp(token_list[2], "ring"))
 					{
 						rx_rings[save_pos] = atoi(token_list[3]);
 						/* look up ring, based on user's provided id*/ 
@@ -665,9 +682,9 @@ main(int argc, char *argv[])
 					rx_funcs[save_pos] = &rte_eth_rx_burst;
 					RTE_LOG(DEBUG, APP, "RX port id %d\n", rx_ports[save_pos]);
 				}
-				if (strncmp(token_list[1], "tx", 2) == 0)
+				if (!strcmp(token_list[1], "tx"))
 				{
-					if (strncmp(token_list[2], "ring", 4) == 0 )
+					if (!strcmp(token_list[2], "ring"))
 					{
 						tx_rings[save_pos] = atoi(token_list[3]);
 						/* look up ring, based on user's provided id*/ 
@@ -686,18 +703,9 @@ main(int argc, char *argv[])
 					RTE_LOG(DEBUG, APP, "TX port id %d\n", tx_ports[save_pos]);					
 				}
 			}
-			else if (strncmp(str, "patch", 5) == 0)
+			else if (!strcmp(token_list[0], "patch"))
 			{
 				RTE_LOG(DEBUG, APP, "patch\n");
-				char *token_list[MAX_PARAMETER] = {NULL};
-				i = 0;				
-				token_list[i] = strtok(str, " ");
-				while(token_list[i] != NULL) 
-				{
-					RTE_LOG(DEBUG, APP, "token %d = %s\n", i, token_list[i]);
-					i++;
-					token_list[i] = strtok(NULL, " ");
-				}				
 				
 				if (strncmp(token_list[1], "reset", 5) == 0)
 				{
@@ -724,46 +732,27 @@ main(int argc, char *argv[])
 					RTE_LOG(DEBUG, APP, "STATUS: outport %d status %d\n", out_port, ports_fwd_array[out_port].status );
 				}
 			}
-			else if (strncmp(str, "del", 3) == 0)
+			else if (!strcmp(token_list[0], "del"))
 			{
 				RTE_LOG(DEBUG, APP, "del\n"); 
 				cmd = STOP;
 				
-				char *token_list[MAX_PARAMETER] = {NULL};
-				int i = 0;				
-				token_list[i] = strtok(str, " ");
-				while(token_list[i] != NULL) 
-				{
-					RTE_LOG(DEBUG, APP, "token %d = %s\n", i, token_list[i]);
-					i++;
-					token_list[i] = strtok(NULL, " ");
-				}
-				if (strncmp(token_list[1], "rx", 2) == 0)
+				if (!strcmp(token_list[1], "rx"))
 				{
 					RTE_LOG(DEBUG, APP, "Del RX port id %d\n", atoi(token_list[2]));
 					rx_ports[save_pos] = RTE_MAX_ETHPORTS + 1;
 					rx_funcs[save_pos] = NULL;					
 				}
-				if (strncmp(token_list[1], "tx", 2) == 0)
+				if (!strcmp(token_list[1], "tx"))
 				{
 					RTE_LOG(DEBUG, APP, "Del RX port id %d\n", atoi(token_list[2]));
 					tx_ports[save_pos] = RTE_MAX_ETHPORTS + 1;;
 					tx_funcs[save_pos] = NULL;
 				}
 			}
-			else if (strncmp(str, "save", 4) == 0)
+			else if (!strcmp(token_list[0], "save"))
 			{
-				RTE_LOG(DEBUG, APP, "save\n");
-				char *token_list[MAX_PARAMETER] = {NULL};
-				int i = 0;				
-				token_list[i] = strtok(str, " ");
-				while(token_list[i] != NULL) 
-				{
-					RTE_LOG(DEBUG, APP, "token %d = %s\n", i, token_list[i]);
-					i++;
-					token_list[i] = strtok(NULL, " ");
-				}
-				
+				RTE_LOG(DEBUG, APP, "save\n");				
 				unsigned input_pos = atoi(token_list[1]);
 				if (input_pos == exec_pos)
 				{
@@ -775,24 +764,13 @@ main(int argc, char *argv[])
 					sprintf(str, "Save changed: %d for client %d\n", save_pos, client_id);
 				}
 			}
-			else if (strncmp(str, "exec", 4) == 0)
+			else if (!strcmp(token_list[0], "exec"))
 			{
-				RTE_LOG(DEBUG, APP, "save\n");
-				char *token_list[MAX_PARAMETER] = {NULL};
-				int i = 0;				
-				token_list[i] = strtok(str, " ");
-				while(token_list[i] != NULL) 
-				{
-					RTE_LOG(DEBUG, APP, "token %d = %s\n", i, token_list[i]);
-					i++;
-					token_list[i] = strtok(NULL, " ");
-				}
-				
+				RTE_LOG(DEBUG, APP, "save\n");				
 				exec_pos = atoi(token_list[1]);
 
 				sprintf(str, "Loop changed: %d for client %d\n", exec_pos, client_id);
 			}			
-			RTE_LOG(DEBUG, APP, "Received string: %s\n", str);
 		} 
 		else 
 		{

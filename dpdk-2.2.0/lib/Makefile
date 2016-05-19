@@ -62,6 +62,7 @@ DIRS-$(CONFIG_RTE_LIBRTE_REORDER) += librte_reorder
 ifeq ($(CONFIG_RTE_EXEC_ENV_LINUXAPP),y)
 DIRS-$(CONFIG_RTE_LIBRTE_KNI) += librte_kni
 DIRS-$(CONFIG_RTE_LIBRTE_IVSHMEM) += librte_ivshmem
+DIRS-$(CONFIG_RTE_LIBRTE_HOSTSHMEM) += librte_hostshmem
 endif
 
 include $(RTE_SDK)/mk/rte.sharelib.mk

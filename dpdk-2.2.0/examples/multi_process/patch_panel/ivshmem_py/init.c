@@ -42,6 +42,7 @@
 #include <rte_common.h>
 #include <rte_memory.h>
 #include <rte_memzone.h>
+#include <rte_eal_memconfig.h>
 #include <rte_tailq.h>
 #include <rte_eal.h>
 #include <rte_byteorder.h>
@@ -66,6 +67,7 @@
 #include <rte_string_fns.h>
 #include <rte_cycles.h>
 #include <rte_ivshmem.h>
+#include <rte_hostshmem.h>
 
 #include "common.h"
 #include "args.h"
@@ -84,7 +86,8 @@
 
 #define NO_FLAGS 0
 
-#define IVSHMEN_METADATA_NAME "pp_ivshmem"
+#define IVSHMEM_METADATA_NAME "pp_ivshmem"
+#define HOSTSHMEM_METADATA_NAME "pp_hostshmem"
 #define CMDLINE_OPT_FWD_CONF "fwd-conf"
 #define QEMU_CMD_FMT "/tmp/ivshmem_qemu_cmdline_%s"
 
@@ -323,6 +326,22 @@ generate_ivshmem_cmdline(const char *config_name)
 	return 0;
 }
 
+/*
+static int
+generate_hostshmem_cmdline(const char *config_name)
+{
+	char cmdline[PATH_MAX];
+	if (rte_hostshmem_metadata_cmdline_generate(cmdline, sizeof(cmdline),
+			config_name) < 0)
+		return -1;
+
+	if (print_to_file(cmdline, config_name) < 0)
+		return -1;
+
+	rte_hostshmem_metadata_dump(stdout, config_name);
+	return 0;
+}
+*/
 /**
  * Main init function for the multi-process server app,
  * calls subfunctions to do each stage of the initialisation.
@@ -332,7 +351,7 @@ init(int argc, char *argv[])
 {
 	int retval;
 	const struct rte_memzone *mz;
-	uint8_t i, total_ports;
+	unsigned i, total_ports;
 
 	/* init EAL, parsing EAL args */
 	retval = rte_eal_init(argc, argv);
@@ -360,8 +379,6 @@ init(int argc, char *argv[])
 			rte_exit(EXIT_FAILURE, "Cannot reserve memory zone for port information\n");
 		memset(mz->addr, 0, sizeof(*ports));
 		ports = mz->addr;
-
-
 	}
 
 	/* parse additional, application arguments */
@@ -392,21 +409,63 @@ init(int argc, char *argv[])
 	
 	if (rte_eal_process_type() == RTE_PROC_PRIMARY)
 	{
+		RTE_LOG(INFO, APP, "HOST SHARE MEM Init.\n");
+		/* create metadata, output cmdline 
+		if (rte_hostshmem_metadata_create(HOSTSHMEM_METADATA_NAME) < 0)
+			rte_exit(EXIT_FAILURE, "Cannot create HOSTSHMEM metadata\n");
+		if (rte_hostshmem_metadata_add_memzone(mz, HOSTSHMEM_METADATA_NAME))
+			rte_exit(EXIT_FAILURE, "Cannot add memzone to HOSTSHMEM metadata\n");					
+		if (rte_hostshmem_metadata_add_mempool(pktmbuf_pool, HOSTSHMEM_METADATA_NAME))
+			rte_exit(EXIT_FAILURE, "Cannot add mbuf mempool to HOSTSHMEM metadata\n");	
+		for (i = 0; i < num_clients; i++) 
+		{
+			if (rte_hostshmem_metadata_add_ring(clients[i].rx_q,
+					HOSTSHMEM_METADATA_NAME) < 0)
+				rte_exit(EXIT_FAILURE, "Cannot add ring client %d to HOSTSHMEM metadata\n", i);
+		}
+		generate_hostshmem_cmdline(HOSTSHMEM_METADATA_NAME);
+		*/
+		
+		const struct rte_mem_config *mcfg;
+		/* get pointer to global configuration */
+		mcfg = rte_eal_get_configuration()->mem_config;
+
+		for (i = 0; i < RTE_MAX_MEMSEG; i++) {
+			if (mcfg->memseg[i].addr == NULL)
+				break;
+
+			printf("Segment %u: phys:0x%"PRIx64", len:%zu, "
+				   "virt:%p, socket_id:%"PRId32", "
+				   "hugepage_sz:%"PRIu64", nchannel:%"PRIx32", "
+				   "nrank:%"PRIx32"\n", i,
+				   mcfg->memseg[i].phys_addr,
+				   mcfg->memseg[i].len,
+				   mcfg->memseg[i].addr,
+				   mcfg->memseg[i].socket_id,
+				   mcfg->memseg[i].hugepage_sz,
+				   mcfg->memseg[i].nchannel,
+				   mcfg->memseg[i].nrank);
+		}
+		
+		RTE_LOG(INFO, APP, "HOST SHARE MEM Init. done\n");
+		
+		RTE_LOG(INFO, APP, "IV SHARE MEM Init.\n");
 		/* create metadata, output cmdline */
-		if (rte_ivshmem_metadata_create(IVSHMEN_METADATA_NAME) < 0)
+		if (rte_ivshmem_metadata_create(IVSHMEM_METADATA_NAME) < 0)
 			rte_exit(EXIT_FAILURE, "Cannot create IVSHMEM metadata\n");	
-		if (rte_ivshmem_metadata_add_memzone(mz, IVSHMEN_METADATA_NAME))
+		if (rte_ivshmem_metadata_add_memzone(mz, IVSHMEM_METADATA_NAME))
 			rte_exit(EXIT_FAILURE, "Cannot add memzone to IVSHMEM metadata\n");					
-		if (rte_ivshmem_metadata_add_mempool(pktmbuf_pool, IVSHMEN_METADATA_NAME))
+		if (rte_ivshmem_metadata_add_mempool(pktmbuf_pool, IVSHMEM_METADATA_NAME))
 			rte_exit(EXIT_FAILURE, "Cannot add mbuf mempool to IVSHMEM metadata\n");				
 		
 		for (i = 0; i < num_clients; i++) 
 		{
 			if (rte_ivshmem_metadata_add_ring(clients[i].rx_q,
-					IVSHMEN_METADATA_NAME) < 0)
+					IVSHMEM_METADATA_NAME) < 0)
 				rte_exit(EXIT_FAILURE, "Cannot add ring client %d to IVSHMEM metadata\n", i);
 		}
-		generate_ivshmem_cmdline(IVSHMEN_METADATA_NAME);
+		generate_ivshmem_cmdline(IVSHMEM_METADATA_NAME);
+		RTE_LOG(INFO, APP, "IV SHARE MEM Done.\n");
 	}
 	
 	

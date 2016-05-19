@@ -151,6 +151,28 @@ int rte_eal_ivshmem_init(void);
 int rte_eal_ivshmem_obj_init(void);
 #endif
 
+#ifdef RTE_LIBRTE_HOSTSHMEM
+/**
+ * Init the memory from HOSTSHMEM devices
+ *
+ * This function is private to EAL.
+ *
+ * @return
+ *  0 on success, negative on error
+ */
+int rte_eal_hostshmem_init(void);
+
+/**
+ * Init objects in HOSTSHMEM devices
+ *
+ * This function is private to EAL.
+ *
+ * @return
+ *  0 on success, negative on error
+ */
+int rte_eal_hostshmem_obj_init(void);
+#endif
+
 struct rte_pci_driver;
 struct rte_pci_device;
 

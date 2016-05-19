@@ -83,7 +83,7 @@ struct internal_config {
 	volatile enum rte_intr_mode vfio_intr_mode;
 	const char *hugefile_prefix;      /**< the base filename of hugetlbfs files */
 	const char *hugepage_dir;         /**< specific hugetlbfs directory to use */
-
+	const char *hsm_metadata;         /**< specific file path for hostshmem */
 	unsigned num_hugepage_sizes;      /**< how many sizes on this system */
 	struct hugepage_info hugepage_info[MAX_HUGEPAGE_SIZES];
 };

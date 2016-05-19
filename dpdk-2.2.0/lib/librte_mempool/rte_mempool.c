@@ -889,8 +889,12 @@ rte_mempool_lookup(const char *name)
 
 	TAILQ_FOREACH(te, mempool_list, next) {
 		mp = (struct rte_mempool *) te->data;
+		RTE_LOG(DEBUG, MEMPOOL, "Entry %s at tailq entry, looking for %s\n", mp->name, name);
 		if (strncmp(name, mp->name, RTE_MEMPOOL_NAMESIZE) == 0)
+		{
+			RTE_LOG(DEBUG, MEMPOOL, "Found Entry %s\n", name);
 			break;
+		}
 	}
 
 	rte_rwlock_read_unlock(RTE_EAL_MEMPOOL_RWLOCK);

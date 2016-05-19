@@ -113,7 +113,8 @@ volatile cmd_type cmd = STOP;
 
 struct port
 {
-	int active;
+	int status;
+	port_type type;
 	uint16_t (*rx_func)(uint8_t, uint16_t, struct rte_mbuf **, uint16_t);
 	uint16_t (*tx_func)(uint8_t, uint16_t, struct rte_mbuf **, uint16_t);
 	int out_port_id;
@@ -130,52 +131,7 @@ struct client_rx_buf {
 };
 
 struct rte_mempool *host_mp;
-
-
-static void
-forward_memcpy(void)
-{
-	uint16_t nb_rx;
-	uint16_t nb_tx;
-	int i;
-	int in_port;
-	int out_port;
-	
-	/* Go through every possible port numbers*/
-	for (i = 0; i < RTE_MAX_ETHPORTS; i++)
-	{
-		if (ports_fwd_array[i].active >= 0)
-		{
-			/* if active, i count is in port*/
-			in_port = i;
-			if ( ports_fwd_array[i].out_port_id >= 0)
-			{
-				
-				out_port = ports_fwd_array[i].out_port_id;
-				/*RTE_LOG(DEBUG, APP, "Fwd: %d to %d\n", in_port, out_port );*/
-				
-				/* Get burst of RX packets, from first port of pair. */
-				struct rte_mbuf *bufs[MAX_PKT_BURST];
-				/*first port rx, second port tx*/
-				nb_rx = ports_fwd_array[in_port].rx_func(in_port, 0,
-									bufs, MAX_PKT_BURST);
-				if (unlikely(nb_rx == 0))
-					continue;
-				
-				/* Send burst of TX packets, to second port of pair. */
-				nb_tx = ports_fwd_array[out_port].tx_func(out_port, 0,
-									bufs, nb_rx);
-									
-				/* Free any unsent packets. */
-				if (unlikely(nb_tx < nb_rx)) {
-					uint16_t buf;
-					for (buf = nb_tx; buf < nb_rx; buf++)
-						rte_pktmbuf_free(bufs[buf]);
-				}
-			}
-		}
-	}
-}
+static uint8_t client_id = MAX_CLIENT;
 
 static void
 forward(void)
@@ -189,9 +145,9 @@ forward(void)
 	/* Go through every possible port numbers*/
 	for (i = 0; i < RTE_MAX_ETHPORTS; i++)
 	{
-		if (ports_fwd_array[i].active >= 0)
+		if (ports_fwd_array[i].status >= 0)
 		{
-			/* if active, i count is in port*/
+			/* if status active, i count is in port*/
 			in_port = i;
 			if ( ports_fwd_array[i].out_port_id >= 0)
 			{
@@ -221,6 +177,7 @@ forward(void)
 		}
 	}
 }
+
 
 /* main processing loop */
 static void
@@ -244,10 +201,6 @@ nfv_loop(void)
 		{
 			forward();
 		}
-		else if (cmd == FWDCPY)
-		{
-			forward_memcpy();
-		}
 	}
 }
 
@@ -259,7 +212,7 @@ main_loop(__attribute__((unused)) void *dummy)
 	return 0;
 }
 
-
+/* initialize forward array with default value*/
 static void
 forward_array_init(void)
 {
@@ -268,8 +221,105 @@ forward_array_init(void)
 	/* initialize port forward array*/
 	for (i=0; i< RTE_MAX_ETHPORTS; i++)
 	{
-		ports_fwd_array[i].active = -1;
-		ports_fwd_array[i].out_port_id = -1;
+		ports_fwd_array[i].status = -99;
+		ports_fwd_array[i].type = UNDEF;
+		ports_fwd_array[i].out_port_id = -99;
+	}	
+}
+
+static void
+forward_array_reset(void)
+{
+	unsigned i;
+	
+	/* initialize port forward array*/
+	for (i=0; i< RTE_MAX_ETHPORTS; i++)
+	{
+		if (ports_fwd_array[i].status > -1)
+		{
+				ports_fwd_array[i].out_port_id = -99;
+				RTE_LOG(INFO, APP, "Port ID %d\n", i);
+				RTE_LOG(INFO, APP, "out_port_id %d\n", ports_fwd_array[i].out_port_id);
+		}
+	}	
+}
+
+/* print forward array*/
+static void
+forward_array_print(void)
+{
+	unsigned i;
+	
+	/* every elements value*/
+	for (i=0; i< RTE_MAX_ETHPORTS; i++)
+	{
+		RTE_LOG(INFO, APP, "Port ID %d\n", i);
+		RTE_LOG(INFO, APP, "Status %d\n", ports_fwd_array[i].status);
+
+		switch(ports_fwd_array[i].type) {
+			case PHY :
+				RTE_LOG(INFO, APP, "Type: PHY\n");
+				break;
+			case RING :
+				RTE_LOG(INFO, APP, "Type: RING\n");
+				break;
+			case VHOST :
+				RTE_LOG(INFO, APP, "Type: VHOST\n");
+				break;
+			case UNDEF :
+				RTE_LOG(INFO, APP, "Type: UDF\n");
+				break;				
+		}
+		RTE_LOG(INFO, APP, "Out Port ID %d\n", ports_fwd_array[i].out_port_id);
+	}	
+}
+
+/* print forward array active port*/
+static void
+print_active_ports(char *str)
+{
+	unsigned i;
+	
+	sprintf(str, "%d\n", client_id);
+	/* every elements value*/
+	for (i=0; i< RTE_MAX_ETHPORTS; i++)
+	{
+		if (ports_fwd_array[i].status >= 0)
+		{
+			RTE_LOG(INFO, APP, "Port ID %d\n", i);
+			RTE_LOG(INFO, APP, "Status %d\n", ports_fwd_array[i].status);
+		
+			sprintf(str + strlen(str), "port id: %d,", i);
+			if (ports_fwd_array[i].status >= 0)
+			{
+					sprintf(str + strlen(str), "on,");
+			}
+			else
+			{
+				sprintf(str + strlen(str), "off,");
+			}
+						
+			switch(ports_fwd_array[i].type) {
+				case PHY :
+					RTE_LOG(INFO, APP, "Type: PHY\n");
+					sprintf(str + strlen(str), "PHY,");
+					break;
+				case RING :
+					RTE_LOG(INFO, APP, "Type: RING\n");
+					sprintf(str + strlen(str), "RING,");
+					break;
+				case VHOST :
+					RTE_LOG(INFO, APP, "Type: VHOST\n");
+					sprintf(str + strlen(str), "VHOST,");
+					break;
+				case UNDEF :
+					RTE_LOG(INFO, APP, "Type: UDF\n");
+					sprintf(str + strlen(str), "UDF,");
+					break;				
+			}
+			RTE_LOG(INFO, APP, "Out Port ID %d\n", ports_fwd_array[i].out_port_id);	
+			sprintf(str + strlen(str), "outport: %d\n", ports_fwd_array[i].out_port_id);
+		}	
 	}	
 }
 
@@ -287,6 +337,20 @@ main(int argc, char *argv[])
 	
 	/* initialize port forward array*/
 	forward_array_init();	
+
+	/* update port_forward_array with active port */
+	for (i=0; i < RTE_MAX_ETHPORTS; i++)
+	{
+		if (rte_eth_dev_is_valid_port(i))
+		{
+			if (rte_eth_dev_get_device_type(i) == RTE_ETH_DEV_PCI)
+			{
+				/* Update ports_fwd_array with phy port*/
+				ports_fwd_array[i].status = i;
+				ports_fwd_array[i].type = PHY;						
+			}
+		}
+	}
 	
 	RTE_LOG(INFO, APP, "Finished Process Init.\n");
 
@@ -335,63 +399,75 @@ main(int argc, char *argv[])
 		memset(str,'\0',sizeof(str));
 		if ((t=recv(sock, str, MSG_SIZE, 0)) > 0) 
 		{
-			if (strncmp(str, "status", 6) == 0)
+			RTE_LOG(DEBUG, APP, "Received string: %s\n", str);
+			/* tokenize the user commands from controller */
+			char *token_list[MAX_PARAMETER] = {NULL};
+			i = 0;				
+			token_list[i] = strtok(str, " ");
+			while(token_list[i] != NULL) 
+			{
+				RTE_LOG(DEBUG, APP, "token %d = %s\n", i, token_list[i]);
+				i++;
+				token_list[i] = strtok(NULL, " ");
+			}
+			
+			if (!strcmp(token_list[0], "status"))
 			{
 				RTE_LOG(DEBUG, APP, "status\n");
-				memset(str,'\0',sizeof(str));
-				
 				if (cmd == START)
 				{
-					sprintf(str, "Server Running\n");
+					sprintf(str, "Client ID %d Running\n", client_id);
 				}
 				else
 				{
-					sprintf(str, "Server Idling\n");					
-				}	
+					sprintf(str, "Client ID %d Idling\n", client_id);
+				}
+				print_active_ports(str);
+				forward_array_print();
 			}
-			if (strncmp(str, "start", 5) == 0)
+			if (!strcmp(token_list[0], "start"))
 			{
 				RTE_LOG(DEBUG, APP, "start\n");
 				cmd = START;
 			}
-			else if (strncmp(str, "stop", 4) == 0)
+			else if (!strcmp(token_list[0], "stop"))
 			{
 				RTE_LOG(DEBUG, APP, "stop\n"); 
 				cmd = STOP;
 			}
-			else if (strncmp(str, "forward", 7) == 0)
+			else if (!strcmp(token_list[0], "forward"))
 			{
 				RTE_LOG(DEBUG, APP, "forward\n"); 
 				cmd = FORWARD;
-			}		
-			else if (strncmp(str, "fwdcopy", 7) == 0)
-			{
-				RTE_LOG(DEBUG, APP, "forward\n"); 
-				cmd = FWDCPY;
-			}					
-			else if (strncmp(str, "add", 3) == 0)
+			}
+			
+			else if (strncmp(token_list[0], "add", 3) == 0)
 			{
 				RTE_LOG(DEBUG, APP, "add\n");
-				char *token_list[MAX_PARAMETER] = {NULL};
-				int i = 0;				
-				token_list[i] = strtok(str, " ");
-				while(token_list[i] != NULL) 
+				if (!strcmp(token_list[1], "ring"))
 				{
-					RTE_LOG(DEBUG, APP, "token %d = %s\n", i, token_list[i]);
-					i++;
-					token_list[i] = strtok(NULL, " ");
-				}
-				if (strncmp(token_list[1], "ring", 4) == 0)
-				{
-					int ring_id = atoi(token_list[2]);
+					uint16_t ring_id = atoi(token_list[2]);
+					struct rte_ring *ring;
 					/* look up ring, based on user's provided id*/ 
-					struct rte_ring *ring = rte_ring_lookup(get_rx_queue_name(ring_id));
+					if ( ring_id >= 255 )
+					{
+						RTE_LOG(DEBUG, APP, "ring name %s\n", get_ring_name(ring_id >> 8));
+						ring = rte_ring_lookup(get_ring_name(ring_id >> 8));
+					}
+					else
+					{
+						RTE_LOG(DEBUG, APP, "ring name %s\n", get_rx_queue_name(ring_id));
+						ring = rte_ring_lookup(get_rx_queue_name(ring_id));
+					}
 					if (ring == NULL)
 						rte_exit(EXIT_FAILURE, "Cannot get RX ring - is server process running?\n");
 					/* create ring pmd*/
-					int ring_port_id = rte_eth_from_ring(ring);					
+					uint16_t ring_port_id = rte_eth_from_ring_s0(ring);	
+					/* Update ports_fwd_array with vhost port*/
+					ports_fwd_array[ring_port_id].status = ring_port_id;
+					ports_fwd_array[ring_port_id].type = RING;
 					RTE_LOG(DEBUG, APP, "ring port id %d\n", ring_port_id); 
-				}
+				}				
 				if (strncmp(token_list[1], "pool", 4) == 0)
 				{
 					host_mp = rte_mempool_lookup("MProc_pktmbuf_pool");
@@ -399,45 +475,35 @@ main(int argc, char *argv[])
 						rte_exit(EXIT_FAILURE, "Cannot get mempool for mbufs\n");
 				}
 			}
-			else if (strncmp(str, "patch", 5) == 0)
+			else if (!strcmp(token_list[0], "patch"))
 			{
 				RTE_LOG(DEBUG, APP, "patch\n");
-				char *token_list[MAX_PARAMETER] = {NULL};
-				i = 0;				
-				token_list[i] = strtok(str, " ");
-				while(token_list[i] != NULL) 
-				{
-					RTE_LOG(DEBUG, APP, "token %d = %s\n", i, token_list[i]);
-					i++;
-					token_list[i] = strtok(NULL, " ");
-				}				
 				
 				if (strncmp(token_list[1], "reset", 5) == 0)
 				{
 					/* reset forward array*/
-					forward_array_init();
+					forward_array_reset();
 				}
 				else 
 				{
 					/* Populate in port data */ 
 					int in_port = atoi(token_list[1]);
-					ports_fwd_array[in_port].active = in_port; 
+					ports_fwd_array[in_port].status = in_port; 
 					ports_fwd_array[in_port].rx_func = &rte_eth_rx_burst;
 					ports_fwd_array[in_port].tx_func = &rte_eth_tx_burst;
 					int out_port = atoi(token_list[2]);
 					ports_fwd_array[in_port].out_port_id = out_port; 
 					
 					/* Populate out port data */ 
-					ports_fwd_array[out_port].active = out_port;
+					ports_fwd_array[out_port].status = out_port;
 					ports_fwd_array[out_port].rx_func = &rte_eth_rx_burst;
 					ports_fwd_array[out_port].tx_func = &rte_eth_tx_burst;
 
-					RTE_LOG(DEBUG, APP, "STATUS: %d active %d\n", in_port, ports_fwd_array[in_port].active );
-					RTE_LOG(DEBUG, APP, "STATUS: %d to %d\n", in_port, ports_fwd_array[in_port].out_port_id );
-					RTE_LOG(DEBUG, APP, "STATUS: %d active %d\n", out_port, ports_fwd_array[out_port].active );
+					RTE_LOG(DEBUG, APP, "STATUS: in port %d status %d\n", in_port, ports_fwd_array[in_port].status );
+					RTE_LOG(DEBUG, APP, "STATUS: in port %d patch out port id %d\n", in_port, ports_fwd_array[in_port].out_port_id );
+					RTE_LOG(DEBUG, APP, "STATUS: outport %d status %d\n", out_port, ports_fwd_array[out_port].status );
 				}
 			}			
-			
 			else if (strncmp(str, "del", 3) == 0)
 			{
 				RTE_LOG(DEBUG, APP, "del\n"); 
@@ -457,7 +523,7 @@ main(int argc, char *argv[])
 					RTE_LOG(DEBUG, APP, "Del ring id %d\n", atoi(token_list[2]));
 				}
 			}
-			RTE_LOG(DEBUG, APP, "Received string: %s\n", str);
+			
 		} 
 		else 
 		{

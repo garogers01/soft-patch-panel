@@ -192,12 +192,12 @@ parse_app_args(uint8_t max_ports, int argc, char *argv[])
 				return -1;
 		}
 	}
-
+/*
 	if (ports->num_ports == 0 || num_clients == 0){
 		usage();
 		return -1;
 	}
-
+*/
 	return 0;
 }
 

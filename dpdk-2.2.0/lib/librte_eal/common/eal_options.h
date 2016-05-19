@@ -73,6 +73,8 @@ enum {
 	OPT_NO_SHCONF_NUM,
 #define OPT_SOCKET_MEM        "socket-mem"
 	OPT_SOCKET_MEM_NUM,
+#define OPT_HOST_SHMEM        "hostshmem"
+	OPT_HOST_SHMEM_NUM,	
 #define OPT_SYSLOG            "syslog"
 	OPT_SYSLOG_NUM,
 #define OPT_VDEV              "vdev"

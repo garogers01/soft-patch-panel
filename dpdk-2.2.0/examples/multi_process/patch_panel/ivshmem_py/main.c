@@ -69,6 +69,7 @@
 #include <rte_memcpy.h>
 #include <rte_mbuf.h>
 #include <rte_ether.h>
+#include <rte_eth_ring.h>
 #include <rte_interrupts.h>
 #include <rte_pci.h>
 #include <rte_ethdev.h>
@@ -76,6 +77,8 @@
 #include <rte_malloc.h>
 #include <rte_fbk_hash.h>
 #include <rte_string_fns.h>
+#include <signal.h> //  our new library 
+volatile sig_atomic_t on = 1;
 
 
 #include "common.h"
@@ -125,6 +128,12 @@ struct client_rx_buf {
 
 /* One buffer per client rx queue - dynamically allocate array */
 static struct client_rx_buf *cl_rx_buf;
+
+
+//static void turn_off(int sig){ // can be called asynchronously
+//  on = 0; // set flag
+//  printf ("terminated %d\n", sig);
+//}
 
 static const char *
 get_printable_mac_addr(uint8_t port)
@@ -257,7 +266,8 @@ main(int argc, char *argv[])
 {
 	int sock = SOCK_RESET, connected = 0, t;
 	char str[MSG_SIZE];
-	
+
+  
 	/* initialise the system */
 	if (init(argc, argv) < 0 )
 		return -1;
@@ -275,8 +285,9 @@ main(int argc, char *argv[])
 	rte_eal_mp_remote_launch(sleep_lcore, NULL, SKIP_MASTER);
 	
     memset(str, '\0', MSG_SIZE);
-	while (1)
+	while (on)
 	{
+		printf ("while loop running\n");
 		if (connected == 0)
 		{
 			if (sock < 0 )
@@ -307,14 +318,26 @@ main(int argc, char *argv[])
 			{
 				RTE_LOG(INFO, APP, "Connected\n");
 				connected = 1;
+				
 			}
-
 		}
-		
+
 		memset(str,'\0',sizeof(str));
 		if ((t=recv(sock, str, MSG_SIZE, 0)) > 0) 
 		{
-			if (strncmp(str, "status", 6) == 0)
+			RTE_LOG(DEBUG, APP, "Received string: %s\n", str);
+			/* tokenize the user commands from controller */
+			char *token_list[MAX_PARAMETER] = {NULL};
+			int i = 0;				
+			token_list[i] = strtok(str, " ");
+			while(token_list[i] != NULL) 
+			{
+				RTE_LOG(DEBUG, APP, "token %d = %s\n", i, token_list[i]);
+				i++;
+				token_list[i] = strtok(NULL, " ");
+			}
+
+			if (!strcmp(token_list[0], "status"))
 			{
 				RTE_LOG(DEBUG, APP, "status\n");
 				memset(str,'\0',sizeof(str));
@@ -328,53 +351,51 @@ main(int argc, char *argv[])
 					sprintf(str, "Server Idling\n");					
 				}	
 			}
-			if (strncmp(str, "start", 5) == 0)
+			if (!strcmp(token_list[0], "exit"))
+			{
+				RTE_LOG(DEBUG, APP, "exit\n");
+				RTE_LOG(DEBUG, APP, "stop\n"); 
+				cmd = STOP;
+				
+				break;	
+			}			
+			if (!strcmp(token_list[0], "start"))
 			{
 				RTE_LOG(DEBUG, APP, "start\n");
 				cmd = START;
 			}
-			else if (strncmp(str, "stop", 4) == 0)
+			else if (!strcmp(token_list[0], "stop"))
 			{
 				RTE_LOG(DEBUG, APP, "stop\n"); 
 				cmd = STOP;
 			}
-			else if (strncmp(str, "add", 3) == 0)
+			else if (!strcmp(token_list[0], "add"))
 			{
+			
 				RTE_LOG(DEBUG, APP, "add\n");
-				char *token_list[MAX_PARAMETER] = {NULL};
-				int i = 0;				
-				token_list[i] = strtok(str, " ");
-				while(token_list[i] != NULL) 
+				if (!strcmp(token_list[1], "ring"))
 				{
-					RTE_LOG(DEBUG, APP, "token %d = %s\n", i, token_list[i]);
-					i++;
-					token_list[i] = strtok(NULL, " ");
-				}
-				if (strncmp(token_list[1], "ring", 4) == 0)
-				{
-					RTE_LOG(DEBUG, APP, "adding ring = %d\n", atoi(token_list[2])); 					
-				}
+					int ring_id = atoi(token_list[2]);
+					/* look up ring, based on user's provided id*/ 
+					struct rte_ring *ring = rte_ring_lookup(get_rx_queue_name(ring_id));
+					if (ring == NULL)
+						rte_exit(EXIT_FAILURE, "Cannot get RX ring - is server process running?\n");
+					/* create ring pmd*/
+					int ring_port_id = rte_eth_from_ring(ring);	
+					RTE_LOG(DEBUG, APP, "ring port id %d\n", ring_port_id); 
+				}				
 			}
-			else if (strncmp(str, "del", 3) == 0)
+			else if (!strcmp(token_list[0], "del"))
 			{
 				RTE_LOG(DEBUG, APP, "del\n"); 
 				cmd = STOP;
 				
-				char *token_list[MAX_PARAMETER] = {NULL};
-				int i = 0;				
-				token_list[i] = strtok(str, " ");
-				while(token_list[i] != NULL) 
-				{
-					RTE_LOG(DEBUG, APP, "token %d = %s\n", i, token_list[i]);
-					i++;
-					token_list[i] = strtok(NULL, " ");
-				}
-				if (strncmp(token_list[1], "ring", 4) == 0)
+				if (!strcmp(token_list[1], "ring"))
 				{
 					RTE_LOG(DEBUG, APP, "Del ring id %d\n", atoi(token_list[2]));
 				}
 			}
-			RTE_LOG(DEBUG, APP, "Received string: %s\n", str);
+			
 		} 
 		else 
 		{
@@ -409,7 +430,9 @@ main(int argc, char *argv[])
 
 	}
 	
-    printf("main end.\n");
+	/* exit */
+	close(sock);
+	sock = SOCK_RESET;
+    printf("ivshmem_py exit.\n");
 	return 0;
-
 }
