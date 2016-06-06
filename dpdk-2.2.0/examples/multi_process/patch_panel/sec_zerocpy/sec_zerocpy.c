@@ -263,7 +263,8 @@ forward(void)
 				if (unlikely(nb_tx < nb_rx)) {
 					uint16_t buf;
 					for (buf = nb_tx; buf < nb_rx; buf++)
-						rte_pktmbuf_free(bufs[buf]);
+					//	rte_pktmbuf_free(bufs[buf]);
+                                                rte_mempool_put(bufs[buf]->pool, (void *)bufs[buf]);
 				}
 			}
 		}
@@ -293,7 +294,8 @@ rxtx(void)
 	if (unlikely(nb_tx < nb_rx)) {
 		uint16_t buf;
 		for (buf = nb_tx; buf < nb_rx; buf++)
-			rte_pktmbuf_free(bufs[buf]);
+			//rte_pktmbuf_free(bufs[buf]);
+                        rte_mempool_put(bufs[buf]->pool, (void *)bufs[buf]);
 	}
 
 exit:

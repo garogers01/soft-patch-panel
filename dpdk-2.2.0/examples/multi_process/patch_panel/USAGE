@@ -1,0 +1,33 @@
+Sample usage of the application :
+
+sudo ./x86_64-softmmu/qemu-system-x86_64 -cpu host -enable-kvm -hda /home/dpdk/fedora-dpdk-1.7.img -m 4096 -smp 4 -boot menu=on -vnc :5 --enable-kvm -device ivshmem,size=2048M,shm=fd:/dev/hugepages/rtemap_0:0xc0000000:0x40000000:/dev/zero:0x0:0x3fffc000:/var/run/.dpdk_ivshmem_metadata_pp_ivshmem:0x0:0x4000 -device e1000,netdev=net0,mac=DE:AD:BE:EF:00:01 -netdev tap,id=net0
+ 
+Start Controller
+
+python controller.py -p 5555
+ 
+Start ivshmem
+sudo ./ivshmem_py/ivshmem_py/x86_64-ivshmem-linuxapp-gcc/ivshmem_py -c 0x02 -n 4 --proc-type=primary -- -p 0x03 -n 3 -s [host ip address]:5555
+ 
+Start nfv
+sudo ./nfv_py/nfv_py/x86_64-ivshmem-linuxapp-gcc/app/nfv_py -c 0x06 -n 4 --proc-type=secondary -- -n 0 -s [host ip address]:5555
+ 
+sudo ./nfv_py/nfv_py/x86_64-ivshmem-linuxapp-gcc/app/nfv_py -c 0x0A -n 4 --proc-type=secondary -- -n 1 -s [host ip address]:5555
+ 
+Note: you will need to build patch_panel in the VM before nfv_phy can be executed.
+
+Start nfv in VM
+sudo ./nfv_py/nfv_py/x86_64-ivshmem-linuxapp-gcc/app/nfv_py -c 0x03 -n 4 --proc-type=primary -- -n 2 -s [host ip address]:5555
+ 
+Controller Commands
+
+0;add rx 0
+0;add tx ring 0
+1;add rx ring 1
+1;add tx 1
+2;add rx ring 0
+2;add tx ring 1
+0;start
+1;start
+2;start
+ 

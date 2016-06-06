@@ -1,0 +1,30 @@
+Installation instructions
+
+Build :
+
+Easiest model is to use the dpdk setup.sh script located in the tools directory.
+
+Pleae refer to the DPDK usage and building guides on http://dpdk.org
+
+Start the script with :
+
+[DPDK Top Directory]/tools/setup.sh
+
+Select the ivshmem option, and DPDK will build.
+
+Once DPDK is built, you can exit the setup.sh script.
+
+Enter the [DPDK Top Directory]/examples/multi_process/patch_panel
+
+set your environment variable for building patch_panel 
+
+export RTE_SDK=[DPDK Top Directory]
+
+export RTE_TARGET=x86_64-ivshmem-linuxapp-gcc
+
+type make
+
+Files should be built
+
+To execute the files with in a virtual machine, you will need to use the qemu-2.3.0 file in the root directory of the Soft_Patch_panel repository.
+

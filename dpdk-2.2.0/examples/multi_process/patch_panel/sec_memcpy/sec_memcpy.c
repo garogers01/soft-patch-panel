@@ -246,7 +246,8 @@ copy_mbufs(struct rte_mempool *pktmbuf_pool, uint8_t nb_mbuf, struct rte_mbuf **
 		/*
 		txm[i] = rte_pktmbuf_alloc(pktmbuf_pool);
 		if (unlikely(txm[i] == NULL)) {
-			rte_pktmbuf_free(txm[i]);
+                        rte_mempool_put(txm[i]->pool, (void *)m[buf]);
+			//rte_pktmbuf_free(txm[i]);
 			RTE_LOG(ERR, APP, "rte_pktmbuf_alloc() failed (%u)\n", i);
 			return -1;
 		}		
@@ -325,7 +326,8 @@ forward(void)
 				if (unlikely(nb_tx < nb_rx)) {
 					
 					for (buf = nb_tx; buf < nb_rx; buf++)
-						rte_pktmbuf_free(m[buf]);
+                                               rte_mempool_put(m[buf]->pool, (void *)m[buf]);
+					//	rte_pktmbuf_free(m[buf]);
 				}
 				
 				//RTE_LOG(DEBUG, APP, "Fwd: port %d - %d pkts to port %d - %d\n", in_port, nb_rx, out_port, nb_tx );
@@ -357,7 +359,8 @@ rxtx(void)
 	if (unlikely(nb_tx < nb_rx)) {
 		uint16_t buf;
 		for (buf = nb_tx; buf < nb_rx; buf++)
-			rte_pktmbuf_free(bufs[buf]);
+                        rte_mempool_put(bufs[buf]->pool, (void *)bufs[buf]);
+			//rte_pktmbuf_free(bufs[buf]);
 	}
 
 exit:

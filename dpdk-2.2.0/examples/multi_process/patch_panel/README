@@ -1,0 +1,5 @@
+This is the Virtual Patch Panel code to manage DPDK resources.
+
+Refer to the INSTALL file for building and installation instructions.
+
+Refer to the USAGE file for how to use the application
